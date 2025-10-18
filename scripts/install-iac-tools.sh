@@ -28,7 +28,7 @@ log_info "Installing Infrastructure as Code tools..."
 # Install OpenTofu
 log_info "Installing OpenTofu..."
 if command -v tofu &> /dev/null; then
-    TOFU_VERSION=$(tofu version | head -n1)
+    TOFU_VERSION=$(tofu version 2>/dev/null | head -n1 || true)
     log_warn "OpenTofu is already installed (${TOFU_VERSION})"
 else
     # Download the installer script
@@ -42,7 +42,7 @@ else
     rm /tmp/install-opentofu.sh
 
     if command -v tofu &> /dev/null; then
-        TOFU_VERSION=$(tofu version | head -n1)
+        TOFU_VERSION=$(tofu version 2>/dev/null | head -n1 || true)
         log_info "OpenTofu installed: ${TOFU_VERSION}"
     fi
 fi
@@ -97,7 +97,7 @@ log_info ""
 log_info "Verifying installations..."
 
 if command -v tofu &> /dev/null; then
-    log_info "✓ OpenTofu: $(tofu version | head -n1)"
+    log_info "✓ OpenTofu: $(tofu version 2>/dev/null | head -n1 || true)"
 else
     log_warn "✗ OpenTofu not installed"
 fi

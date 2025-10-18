@@ -27,7 +27,7 @@ log_info "Installing Ansible..."
 
 # Check if Ansible is already installed
 if command -v ansible &> /dev/null; then
-    ANSIBLE_VERSION=$(ansible --version | head -n1)
+    ANSIBLE_VERSION=$(ansible --version 2>/dev/null | head -n1 || true)
     log_warn "Ansible is already installed (${ANSIBLE_VERSION})"
     read -p "Do you want to reinstall/update Ansible? (y/N): " -n 1 -r
     echo
@@ -49,7 +49,7 @@ sudo apt-get install -y ansible
 
 # Verify installation
 if command -v ansible &> /dev/null; then
-    ANSIBLE_VERSION=$(ansible --version | head -n1)
+    ANSIBLE_VERSION=$(ansible --version 2>/dev/null | head -n1 || true)
     log_info "Ansible installed: ${ANSIBLE_VERSION}"
 
     # Also check for ansible-playbook

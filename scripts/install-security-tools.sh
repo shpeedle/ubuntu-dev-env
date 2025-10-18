@@ -28,7 +28,7 @@ log_info "Installing security tools..."
 # Install Trivy
 log_info "Installing Trivy..."
 if command -v trivy &> /dev/null; then
-    TRIVY_VERSION=$(trivy --version | head -n1)
+    TRIVY_VERSION=$(trivy --version 2>/dev/null | head -n1 || true)
     log_warn "Trivy is already installed (${TRIVY_VERSION})"
 else
     # Add Trivy repository
@@ -42,7 +42,7 @@ else
     sudo apt-get install -y trivy
 
     if command -v trivy &> /dev/null; then
-        TRIVY_VERSION=$(trivy --version | head -n1)
+        TRIVY_VERSION=$(trivy --version 2>/dev/null | head -n1 || true)
         log_info "Trivy installed: ${TRIVY_VERSION}"
     fi
 fi

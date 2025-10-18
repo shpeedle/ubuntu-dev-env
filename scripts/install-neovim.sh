@@ -27,7 +27,7 @@ log_info "Installing Neovim..."
 
 # Check if Neovim is already installed
 if command -v nvim &> /dev/null; then
-    NVIM_VERSION=$(nvim --version | head -n1)
+    NVIM_VERSION=$(nvim --version 2>/dev/null | head -n1 || true)
     log_warn "Neovim is already installed (${NVIM_VERSION})"
     read -p "Do you want to reinstall/update Neovim? (y/N): " -n 1 -r
     echo
@@ -60,7 +60,7 @@ fi
 
 # Verify installation
 if command -v nvim &> /dev/null; then
-    NVIM_VERSION=$(nvim --version | head -n1)
+    NVIM_VERSION=$(nvim --version 2>/dev/null | head -n1 || true)
     log_info "Neovim installed successfully: ${NVIM_VERSION}"
 
     # Create config directory if it doesn't exist

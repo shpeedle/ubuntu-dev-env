@@ -33,7 +33,7 @@ sudo apt-get install -y curl wget
 # Install GitHub CLI (gh)
 log_info "Installing GitHub CLI (gh)..."
 if command -v gh &> /dev/null; then
-    GH_VERSION=$(gh --version | head -n1)
+    GH_VERSION=$(gh --version 2>/dev/null | head -n1 || true)
     log_warn "GitHub CLI is already installed (${GH_VERSION})"
 else
     # Add GitHub CLI repository
@@ -45,7 +45,7 @@ else
     sudo apt-get install -y gh
 
     if command -v gh &> /dev/null; then
-        GH_VERSION=$(gh --version | head -n1)
+        GH_VERSION=$(gh --version 2>/dev/null | head -n1 || true)
         log_info "GitHub CLI installed: ${GH_VERSION}"
     fi
 fi
@@ -98,7 +98,7 @@ fi
 # Install lazygit
 log_info "Installing lazygit..."
 if command -v lazygit &> /dev/null; then
-    LAZYGIT_VERSION=$(lazygit --version | head -n1)
+    LAZYGIT_VERSION=$(lazygit --version 2>/dev/null | head -n1 || true)
     log_warn "lazygit is already installed (${LAZYGIT_VERSION})"
 else
     # Determine architecture
@@ -137,7 +137,7 @@ else
         rm -f /tmp/lazygit.tar.gz /tmp/lazygit
 
         if command -v lazygit &> /dev/null; then
-            LAZYGIT_VERSION=$(lazygit --version | head -n1)
+            LAZYGIT_VERSION=$(lazygit --version 2>/dev/null | head -n1 || true)
             log_info "lazygit installed: ${LAZYGIT_VERSION}"
         fi
     fi
@@ -148,7 +148,7 @@ log_info ""
 log_info "Verifying installations..."
 
 if command -v gh &> /dev/null; then
-    log_info "✓ GitHub CLI: $(gh --version | head -n1)"
+    log_info "✓ GitHub CLI: $(gh --version 2>/dev/null | head -n1 || true)"
 else
     log_warn "✗ GitHub CLI not installed"
 fi
@@ -160,7 +160,7 @@ else
 fi
 
 if command -v lazygit &> /dev/null; then
-    log_info "✓ lazygit: $(lazygit --version | head -n1)"
+    log_info "✓ lazygit: $(lazygit --version 2>/dev/null | head -n1 || true)"
 else
     log_warn "✗ lazygit not installed"
 fi

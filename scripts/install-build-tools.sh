@@ -30,7 +30,7 @@ fi
 
 # Check if cmake is already installed
 if command -v cmake &> /dev/null; then
-    CMAKE_VERSION=$(cmake --version | head -n 1)
+    CMAKE_VERSION=$(cmake --version 2>/dev/null | head -n 1 || true)
     log_warn "cmake is already installed (${CMAKE_VERSION})"
 else
     log_info "Installing cmake..."
@@ -41,22 +41,22 @@ fi
 log_info "Verifying installations..."
 
 if command -v gcc &> /dev/null; then
-    GCC_VERSION=$(gcc --version | head -n 1)
+    GCC_VERSION=$(gcc --version 2>/dev/null | head -n 1 || true)
     log_info "GCC: ${GCC_VERSION}"
 fi
 
 if command -v g++ &> /dev/null; then
-    GPP_VERSION=$(g++ --version | head -n 1)
+    GPP_VERSION=$(g++ --version 2>/dev/null | head -n 1 || true)
     log_info "G++: ${GPP_VERSION}"
 fi
 
 if command -v make &> /dev/null; then
-    MAKE_VERSION=$(make --version | head -n 1)
+    MAKE_VERSION=$(make --version 2>/dev/null | head -n 1 || true)
     log_info "Make: ${MAKE_VERSION}"
 fi
 
 if command -v cmake &> /dev/null; then
-    CMAKE_VERSION=$(cmake --version | head -n 1)
+    CMAKE_VERSION=$(cmake --version 2>/dev/null | head -n 1 || true)
     log_info "CMake: ${CMAKE_VERSION}"
 fi
 

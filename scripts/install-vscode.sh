@@ -20,7 +20,7 @@ log_warn() {
 
 # Check if VSCode is already installed
 if command -v code &> /dev/null; then
-    CURRENT_VERSION=$(code --version | head -n 1)
+    CURRENT_VERSION=$(code --version 2>/dev/null | head -n 1 || true)
     log_warn "VSCode is already installed (version ${CURRENT_VERSION})"
     read -p "Do you want to reinstall VSCode? (y/N): " -n 1 -r
     echo
@@ -51,7 +51,7 @@ sudo apt-get install -y code
 
 # Verify installation
 if command -v code &> /dev/null; then
-    VSCODE_VERSION=$(code --version | head -n 1)
+    VSCODE_VERSION=$(code --version 2>/dev/null | head -n 1 || true)
     log_info "VSCode installed successfully: ${VSCODE_VERSION}"
 
     # Install recommended extensions for development
