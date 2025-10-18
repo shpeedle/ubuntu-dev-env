@@ -4,6 +4,7 @@
 # This script installs essential development tools on a fresh Ubuntu installation
 
 set -e  # Exit on error
+set -o pipefail  # Exit on pipe failures
 
 # Color codes for output
 RED='\033[0;31m'

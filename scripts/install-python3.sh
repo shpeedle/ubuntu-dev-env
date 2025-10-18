@@ -3,6 +3,7 @@
 # Python3 Installation Script
 
 set -e
+set -o pipefail
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

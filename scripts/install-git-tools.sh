@@ -4,6 +4,7 @@
 # Installs GitHub CLI (gh), GitLab CLI (glab), and lazygit
 
 set -e
+set -o pipefail
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
