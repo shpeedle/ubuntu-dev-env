@@ -24,6 +24,11 @@ log_error() {
 
 log_info "Installing Git enhancement tools..."
 
+# Install prerequisites
+log_info "Installing prerequisites (curl, wget)..."
+sudo apt-get update
+sudo apt-get install -y curl wget
+
 # Install GitHub CLI (gh)
 log_info "Installing GitHub CLI (gh)..."
 if command -v gh &> /dev/null; then
