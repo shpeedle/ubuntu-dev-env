@@ -1,0 +1,239 @@
+---
+# Simplified version of setup.yml for Docker testing
+# Skips Docker installation, systemd services, and shell changes
+
+- name: Ubuntu Development Environment Setup (Docker Test Mode)
+  hosts: localhost
+  connection: local
+  become: yes
+  vars:
+    user_home: "{{ lookup('env', 'HOME') }}"
+    regular_user: "{{ lookup('env', 'USER') }}"
+    go_version: "1.23.2"
+    nvm_version: "v0.40.1"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install build-essential and cmake
+      apt:
+        name:
+          - build-essential
+          - cmake
+        state: present
+
+    - name: Install essential CLI tools
+      apt:
+        name:
+          - git
+          - curl
+          - wget
+          - jq
+          - htop
+          - silversearcher-ag
+          - tree
+          - ncdu
+          - ripgrep
+          - fd-find
+          - bat
+          - tldr
+        state: present
+
+    - name: Create ~/.local/bin directory
+      file:
+        path: "{{ user_home }}/.local/bin"
+        state: directory
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+        mode: '0755'
+      become: no
+
+    - name: Create symlinks for fd and bat
+      file:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        state: link
+        force: yes
+      become: no
+      loop:
+        - { src: '/usr/bin/fdfind', dest: '{{ user_home }}/.local/bin/fd' }
+        - { src: '/usr/bin/batcat', dest: '{{ user_home }}/.local/bin/bat' }
+
+    - name: Install fzf
+      git:
+        repo: https://github.com/junegunn/fzf.git
+        dest: "{{ user_home }}/.fzf"
+        depth: 1
+        update: yes
+      become: no
+
+    - name: Install fzf binary
+      shell: "{{ user_home }}/.fzf/install --all --no-bash --no-fish"
+      args:
+        creates: "{{ user_home }}/.fzf/bin/fzf"
+      become: no
+
+    - name: Add eza repository key
+      shell: |
+        wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
+        chmod 644 /etc/apt/keyrings/gierens.gpg
+      args:
+        creates: /etc/apt/keyrings/gierens.gpg
+
+    - name: Add eza repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main"
+        filename: gierens
+        state: present
+
+    - name: Install eza
+      apt:
+        name: eza
+        state: present
+        update_cache: yes
+
+    - name: Download and install yq
+      get_url:
+        url: "https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64"
+        dest: /usr/local/bin/yq
+        mode: '0755'
+      when: ansible_architecture == "x86_64"
+
+    - name: Add GitHub CLI repository key
+      shell: |
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
+        chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/githubcli-archive-keyring.gpg
+
+    - name: Add GitHub CLI repository
+      apt_repository:
+        repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+        filename: github-cli
+        state: present
+
+    - name: Install GitHub CLI
+      apt:
+        name: gh
+        state: present
+        update_cache: yes
+
+    - name: Get latest lazygit release info
+      uri:
+        url: https://api.github.com/repos/jesseduffield/lazygit/releases/latest
+        return_content: yes
+      register: lazygit_release
+      changed_when: false
+      failed_when: false
+
+    - name: Set lazygit version (latest or fallback)
+      set_fact:
+        lazygit_version: "{{ lazygit_release.json.tag_name | default('v0.44.1') }}"
+
+    - name: Download and install lazygit
+      unarchive:
+        src: "https://github.com/jesseduffield/lazygit/releases/download/{{ lazygit_version }}/lazygit_{{ lazygit_version | replace('v', '') }}_Linux_{{ 'x86_64' if ansible_architecture == 'x86_64' else 'arm64' }}.tar.gz"
+        dest: /tmp
+        remote_src: yes
+      when: ansible_architecture in ['x86_64', 'aarch64']
+      retries: 3
+      delay: 5
+      register: lazygit_download
+      until: lazygit_download is succeeded
+
+    - name: Install lazygit binary
+      copy:
+        src: /tmp/lazygit
+        dest: /usr/local/bin/lazygit
+        mode: '0755'
+        remote_src: yes
+      when: ansible_architecture in ['x86_64', 'aarch64']
+
+    - name: Install Python3 and pip
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - python3-dev
+        state: present
+
+    - name: Install UV (Astral)
+      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      args:
+        creates: "{{ user_home }}/.cargo/bin/uv"
+      become: no
+
+    - name: Download nvm installer
+      get_url:
+        url: "https://raw.githubusercontent.com/nvm-sh/nvm/{{ nvm_version }}/install.sh"
+        dest: /tmp/nvm-install.sh
+        mode: '0755'
+      become: no
+
+    - name: Install nvm
+      shell: /tmp/nvm-install.sh
+      args:
+        creates: "{{ user_home }}/.nvm/nvm.sh"
+      become: no
+
+    - name: Remove old Go installation
+      file:
+        path: /usr/local/go
+        state: absent
+
+    - name: Download Go
+      get_url:
+        url: "https://go.dev/dl/go{{ go_version }}.linux-{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}.tar.gz"
+        dest: /tmp/go.tar.gz
+        mode: '0644'
+
+    - name: Extract Go
+      unarchive:
+        src: /tmp/go.tar.gz
+        dest: /usr/local
+        remote_src: yes
+        creates: /usr/local/go/bin/go
+
+    - name: Download rustup installer
+      get_url:
+        url: https://sh.rustup.rs
+        dest: /tmp/rustup.sh
+        mode: '0755'
+      become: no
+
+    - name: Install Rust via rustup
+      shell: /tmp/rustup.sh -y
+      args:
+        creates: "{{ user_home }}/.cargo/bin/rustc"
+      become: no
+
+    - name: Install tmux
+      apt:
+        name: tmux
+        state: present
+
+    - name: Add Neovim PPA
+      apt_repository:
+        repo: ppa:neovim-ppa/unstable
+        state: present
+
+    - name: Install Neovim
+      apt:
+        name:
+          - neovim
+          - python3-neovim
+        state: present
+        update_cache: yes
+
+    - name: Install zsh
+      apt:
+        name: zsh
+        state: present
+
+    - name: Test complete message
+      debug:
+        msg: "✅ Docker test installation completed successfully!"

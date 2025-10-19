@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  ubuntu-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: ubuntu-dev-test
+    privileged: true
+    volumes:
+      - .:/workspace
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    environment:
+      - USER=testuser
+      - HOME=/home/testuser
+    stdin_open: true
+    tty: true
+    command: /bin/bash

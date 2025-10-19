@@ -1,0 +1,818 @@
+---
+- name: Ubuntu Development Environment Setup
+  hosts: localhost
+  connection: local
+  become: yes
+  vars:
+    user_home: "{{ lookup('env', 'HOME') }}"
+    regular_user: "{{ lookup('env', 'USER') }}"
+    go_version: "1.23.2"
+    nvm_version: "v0.40.1"
+
+  tasks:
+    # =============================================================================
+    # System Update
+    # =============================================================================
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    # =============================================================================
+    # Build Tools
+    # =============================================================================
+    - name: Install build-essential and cmake
+      apt:
+        name:
+          - build-essential
+          - cmake
+        state: present
+
+    # =============================================================================
+    # Essential CLI Tools
+    # =============================================================================
+    - name: Install essential CLI tools
+      apt:
+        name:
+          - git
+          - curl
+          - wget
+          - jq
+          - htop
+          - silversearcher-ag
+          - tree
+          - ncdu
+          - ripgrep
+          - fd-find
+          - bat
+          - tldr
+        state: present
+
+    - name: Create ~/.local/bin directory
+      file:
+        path: "{{ user_home }}/.local/bin"
+        state: directory
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+        mode: '0755'
+      become: no
+
+    - name: Create symlinks for fd and bat
+      file:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        state: link
+        force: yes
+      become: no
+      loop:
+        - { src: '/usr/bin/fdfind', dest: '{{ user_home }}/.local/bin/fd' }
+        - { src: '/usr/bin/batcat', dest: '{{ user_home }}/.local/bin/bat' }
+
+    - name: Install fzf
+      git:
+        repo: https://github.com/junegunn/fzf.git
+        dest: "{{ user_home }}/.fzf"
+        depth: 1
+        update: yes
+      become: no
+
+    - name: Install fzf binary
+      shell: "{{ user_home }}/.fzf/install --all --no-bash --no-fish"
+      args:
+        creates: "{{ user_home }}/.fzf/bin/fzf"
+      become: no
+
+    - name: Add eza repository key
+      shell: |
+        wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
+        chmod 644 /etc/apt/keyrings/gierens.gpg
+      args:
+        creates: /etc/apt/keyrings/gierens.gpg
+
+    - name: Add eza repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main"
+        filename: gierens
+        state: present
+
+    - name: Install eza
+      apt:
+        name: eza
+        state: present
+        update_cache: yes
+
+    - name: Download and install yq
+      get_url:
+        url: "https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64"
+        dest: /usr/local/bin/yq
+        mode: '0755'
+      when: ansible_architecture == "x86_64"
+
+    # =============================================================================
+    # Git Tools (GitHub CLI, GitLab CLI, lazygit)
+    # =============================================================================
+    - name: Add GitHub CLI repository key
+      shell: |
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
+        chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/githubcli-archive-keyring.gpg
+
+    - name: Add GitHub CLI repository
+      apt_repository:
+        repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+        filename: github-cli
+        state: present
+
+    - name: Install GitHub CLI
+      apt:
+        name: gh
+        state: present
+        update_cache: yes
+
+    - name: Get latest lazygit release info
+      uri:
+        url: https://api.github.com/repos/jesseduffield/lazygit/releases/latest
+        return_content: yes
+      register: lazygit_release
+      changed_when: false
+      failed_when: false
+
+    - name: Set lazygit version (latest or fallback)
+      set_fact:
+        lazygit_version: "{{ lazygit_release.json.tag_name | default('v0.44.1') }}"
+
+    - name: Download and install lazygit
+      unarchive:
+        src: "https://github.com/jesseduffield/lazygit/releases/download/{{ lazygit_version }}/lazygit_{{ lazygit_version | replace('v', '') }}_Linux_{{ 'x86_64' if ansible_architecture == 'x86_64' else 'arm64' }}.tar.gz"
+        dest: /tmp
+        remote_src: yes
+      when: ansible_architecture in ['x86_64', 'aarch64']
+      retries: 3
+      delay: 5
+      register: lazygit_download
+      until: lazygit_download is succeeded
+
+    - name: Install lazygit binary
+      copy:
+        src: /tmp/lazygit
+        dest: /usr/local/bin/lazygit
+        mode: '0755'
+        remote_src: yes
+      when: ansible_architecture in ['x86_64', 'aarch64']
+
+    # =============================================================================
+    # Python3
+    # =============================================================================
+    - name: Install Python3 and pip
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - python3-dev
+        state: present
+
+    - name: Upgrade pip
+      pip:
+        name: pip
+        state: latest
+        executable: pip3
+      become: no
+
+    # =============================================================================
+    # UV (Astral)
+    # =============================================================================
+    - name: Install UV (Astral)
+      shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      args:
+        creates: "{{ user_home }}/.cargo/bin/uv"
+      become: no
+
+    # =============================================================================
+    # Node.js (via nvm)
+    # =============================================================================
+    - name: Download nvm installer
+      get_url:
+        url: "https://raw.githubusercontent.com/nvm-sh/nvm/{{ nvm_version }}/install.sh"
+        dest: /tmp/nvm-install.sh
+        mode: '0755'
+      become: no
+
+    - name: Install nvm
+      shell: /tmp/nvm-install.sh
+      args:
+        creates: "{{ user_home }}/.nvm/nvm.sh"
+      become: no
+
+    - name: Install Node.js LTS via nvm
+      shell: |
+        export NVM_DIR="{{ user_home }}/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        nvm install --lts
+        nvm use --lts
+        nvm alias default 'lts/*'
+      args:
+        executable: /bin/bash
+        creates: "{{ user_home }}/.nvm/versions"
+      become: no
+
+    # =============================================================================
+    # Golang
+    # =============================================================================
+    - name: Remove old Go installation
+      file:
+        path: /usr/local/go
+        state: absent
+
+    - name: Download Go
+      get_url:
+        url: "https://go.dev/dl/go{{ go_version }}.linux-{{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}.tar.gz"
+        dest: /tmp/go.tar.gz
+        mode: '0644'
+
+    - name: Extract Go
+      unarchive:
+        src: /tmp/go.tar.gz
+        dest: /usr/local
+        remote_src: yes
+        creates: /usr/local/go/bin/go
+
+    - name: Create Go workspace directories
+      file:
+        path: "{{ user_home }}/go/{{ item }}"
+        state: directory
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+      become: no
+      loop:
+        - bin
+        - src
+        - pkg
+
+    # =============================================================================
+    # Rust
+    # =============================================================================
+    - name: Download rustup installer
+      get_url:
+        url: https://sh.rustup.rs
+        dest: /tmp/rustup.sh
+        mode: '0755'
+      become: no
+
+    - name: Install Rust via rustup
+      shell: /tmp/rustup.sh -y
+      args:
+        creates: "{{ user_home }}/.cargo/bin/rustc"
+      become: no
+
+    - name: Install Rust components
+      shell: |
+        source {{ user_home }}/.cargo/env
+        rustup component add rustfmt clippy
+      args:
+        executable: /bin/bash
+      become: no
+      changed_when: false
+
+    # =============================================================================
+    # Docker
+    # =============================================================================
+    - name: Install Docker prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Docker GPG key
+      shell: |
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      args:
+        creates: /etc/apt/keyrings/docker.gpg
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        filename: docker
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Add user to docker group
+      user:
+        name: "{{ regular_user }}"
+        groups: docker
+        append: yes
+
+    - name: Start and enable Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    # =============================================================================
+    # Kubernetes Tools (kubectl)
+    # =============================================================================
+    - name: Add Kubernetes apt key
+      shell: |
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Add Kubernetes repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /"
+        filename: kubernetes
+        state: present
+
+    - name: Install kubectl
+      apt:
+        name: kubectl
+        state: present
+        update_cache: yes
+
+    # =============================================================================
+    # IaC Tools (OpenTofu, Terrascan)
+    # =============================================================================
+    - name: Download OpenTofu installer
+      get_url:
+        url: https://get.opentofu.org/install-opentofu.sh
+        dest: /tmp/install-opentofu.sh
+        mode: '0755'
+
+    - name: Install OpenTofu
+      shell: /tmp/install-opentofu.sh --install-method deb
+      args:
+        creates: /usr/bin/tofu
+
+    - name: Get latest Terrascan release info
+      uri:
+        url: https://api.github.com/repos/tenable/terrascan/releases/latest
+        return_content: yes
+      register: terrascan_release
+      changed_when: false
+      failed_when: false
+
+    - name: Set terrascan version (latest or fallback)
+      set_fact:
+        terrascan_version: "{{ terrascan_release.json.tag_name | default('v1.19.1') }}"
+
+    - name: Download and install Terrascan
+      unarchive:
+        src: "https://github.com/tenable/terrascan/releases/download/{{ terrascan_version }}/terrascan_{{ terrascan_version | replace('v', '') }}_Linux_{{ 'x86_64' if ansible_architecture == 'x86_64' else 'arm64' }}.tar.gz"
+        dest: /tmp
+        remote_src: yes
+      when: ansible_architecture in ['x86_64', 'aarch64']
+      retries: 3
+      delay: 5
+      register: terrascan_download
+      until: terrascan_download is succeeded
+
+    - name: Install Terrascan binary
+      copy:
+        src: /tmp/terrascan
+        dest: /usr/local/bin/terrascan
+        mode: '0755'
+        remote_src: yes
+      when: ansible_architecture in ['x86_64', 'aarch64']
+
+    # =============================================================================
+    # Security Tools (Trivy)
+    # =============================================================================
+    - name: Add Trivy repository key
+      shell: |
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+        chmod 644 /usr/share/keyrings/trivy.gpg
+      args:
+        creates: /usr/share/keyrings/trivy.gpg
+
+    - name: Add Trivy repository
+      apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb {{ ansible_distribution_release }} main"
+        filename: trivy
+        state: present
+
+    - name: Install Trivy
+      apt:
+        name: trivy
+        state: present
+        update_cache: yes
+
+    # =============================================================================
+    # Ansible
+    # =============================================================================
+    - name: Add Ansible PPA
+      apt_repository:
+        repo: ppa:ansible/ansible
+        state: present
+
+    - name: Install Ansible
+      apt:
+        name: ansible
+        state: present
+        update_cache: yes
+
+    - name: Create Ansible directories
+      file:
+        path: "{{ user_home }}/{{ item }}"
+        state: directory
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+      become: no
+      loop:
+        - .ansible
+        - .ansible/inventory
+
+    - name: Create Ansible config
+      copy:
+        dest: "{{ user_home }}/.ansible.cfg"
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+        content: |
+          [defaults]
+          inventory = ~/.ansible/inventory
+          host_key_checking = False
+          retry_files_enabled = False
+          gathering = smart
+          fact_caching = jsonfile
+          fact_caching_connection = ~/.ansible/facts
+          fact_caching_timeout = 3600
+
+          [privilege_escalation]
+          become = True
+          become_method = sudo
+          become_user = root
+          become_ask_pass = False
+      become: no
+
+    # =============================================================================
+    # AWS CLI
+    # =============================================================================
+    - name: Download AWS CLI installer
+      get_url:
+        url: "https://awscli.amazonaws.com/awscli-exe-linux-{{ 'x86_64' if ansible_architecture == 'x86_64' else 'aarch64' }}.zip"
+        dest: /tmp/awscliv2.zip
+
+    - name: Install unzip
+      apt:
+        name: unzip
+        state: present
+
+    - name: Unzip AWS CLI installer
+      unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp
+        remote_src: yes
+
+    - name: Install AWS CLI
+      shell: /tmp/aws/install --update
+      args:
+        creates: /usr/local/bin/aws
+
+    # =============================================================================
+    # Tmux
+    # =============================================================================
+    - name: Install tmux
+      apt:
+        name: tmux
+        state: present
+
+    - name: Create tmux config
+      copy:
+        dest: "{{ user_home }}/.tmux.conf"
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+        content: |
+          # Change prefix from Ctrl+b to Ctrl+a
+          unbind C-b
+          set-option -g prefix C-a
+          bind-key C-a send-prefix
+
+          # Enable mouse support
+          set -g mouse on
+
+          # Split panes using | and -
+          bind | split-window -h
+          bind - split-window -v
+          unbind '"'
+          unbind %
+
+          # Reload config
+          bind r source-file ~/.tmux.conf
+
+          # Enable 256 colors
+          set -g default-terminal "screen-256color"
+
+          # Start windows and panes at 1, not 0
+          set -g base-index 1
+          setw -g pane-base-index 1
+      become: no
+
+    # =============================================================================
+    # Neovim
+    # =============================================================================
+    - name: Add Neovim PPA
+      apt_repository:
+        repo: ppa:neovim-ppa/unstable
+        state: present
+
+    - name: Install Neovim
+      apt:
+        name:
+          - neovim
+          - python3-neovim
+        state: present
+        update_cache: yes
+
+    - name: Create Neovim config directory
+      file:
+        path: "{{ user_home }}/.config/nvim"
+        state: directory
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+      become: no
+
+    - name: Create Neovim config
+      copy:
+        dest: "{{ user_home }}/.config/nvim/init.vim"
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+        content: |
+          " Basic Neovim Configuration
+
+          " Enable line numbers
+          set number
+          set relativenumber
+
+          " Enable syntax highlighting
+          syntax on
+
+          " Set tab width
+          set tabstop=4
+          set shiftwidth=4
+          set expandtab
+
+          " Enable mouse support
+          set mouse=a
+
+          " Enable clipboard support
+          set clipboard=unnamedplus
+
+          " Search settings
+          set ignorecase
+          set smartcase
+          set incsearch
+          set hlsearch
+
+          " Enable auto-indentation
+          set autoindent
+          set smartindent
+
+          " Show matching brackets
+          set showmatch
+
+          " Enable true color support
+          set termguicolors
+
+          " Disable swap files
+          set noswapfile
+          set nobackup
+
+          " Better command line completion
+          set wildmenu
+          set wildmode=list:longest,full
+
+          " Always show status line
+          set laststatus=2
+
+          " Show command in bottom bar
+          set showcmd
+
+          " Highlight current line
+          set cursorline
+
+          " File encoding
+          set encoding=utf-8
+
+          " Enable folding
+          set foldmethod=indent
+          set foldlevel=99
+
+          " Key mappings
+          let mapleader = " "
+
+          " Easy navigation between splits
+          nnoremap <C-h> <C-w>h
+          nnoremap <C-j> <C-w>j
+          nnoremap <C-k> <C-w>k
+          nnoremap <C-l> <C-w>l
+
+          " Clear search highlighting
+          nnoremap <leader><space> :nohlsearch<CR>
+
+          " Quick save
+          nnoremap <leader>w :w<CR>
+
+          " Quick quit
+          nnoremap <leader>q :q<CR>
+
+          " Toggle line numbers
+          nnoremap <leader>n :set number! relativenumber!<CR>
+      become: no
+
+    # =============================================================================
+    # Visual Studio Code
+    # =============================================================================
+    - name: Add Microsoft GPG key
+      shell: |
+        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/packages.microsoft.gpg
+      args:
+        creates: /etc/apt/keyrings/packages.microsoft.gpg
+
+    - name: Add VSCode repository
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main"
+        filename: vscode
+        state: present
+
+    - name: Install Visual Studio Code
+      apt:
+        name: code
+        state: present
+        update_cache: yes
+
+    - name: Install VSCode extensions
+      shell: code --install-extension {{ item }}
+      become: no
+      loop:
+        - ms-python.python
+        - dbaeumer.vscode-eslint
+        - golang.go
+        - rust-lang.rust-analyzer
+        - eamodio.gitlens
+        - EditorConfig.EditorConfig
+      changed_when: false
+
+    # =============================================================================
+    # Google Chrome
+    # =============================================================================
+    - name: Add Google Chrome GPG key
+      shell: |
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/google-chrome-keyring.gpg
+
+    - name: Add Google Chrome repository
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main"
+        filename: google-chrome
+        state: present
+
+    - name: Install Google Chrome
+      apt:
+        name: google-chrome-stable
+        state: present
+        update_cache: yes
+
+    # =============================================================================
+    # Zsh and Oh-My-Zsh
+    # =============================================================================
+    - name: Install zsh
+      apt:
+        name: zsh
+        state: present
+
+    - name: Check if Oh-My-Zsh is installed
+      stat:
+        path: "{{ user_home }}/.oh-my-zsh"
+      register: ohmyzsh_stat
+      become: no
+
+    - name: Download Oh-My-Zsh installer
+      get_url:
+        url: https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
+        dest: /tmp/install-ohmyzsh.sh
+        mode: '0755'
+      become: no
+      when: not ohmyzsh_stat.stat.exists
+
+    - name: Install Oh-My-Zsh
+      shell: RUNZSH=no CHSH=no /tmp/install-ohmyzsh.sh
+      become: no
+      when: not ohmyzsh_stat.stat.exists
+
+    - name: Clone zsh-autosuggestions
+      git:
+        repo: https://github.com/zsh-users/zsh-autosuggestions
+        dest: "{{ user_home }}/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
+        update: yes
+      become: no
+
+    - name: Clone zsh-syntax-highlighting
+      git:
+        repo: https://github.com/zsh-users/zsh-syntax-highlighting.git
+        dest: "{{ user_home }}/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
+        update: yes
+      become: no
+
+    - name: Configure .zshrc
+      template:
+        src: zshrc.j2
+        dest: "{{ user_home }}/.zshrc"
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+      become: no
+
+    - name: Change default shell to zsh
+      user:
+        name: "{{ regular_user }}"
+        shell: /usr/bin/zsh
+
+    # =============================================================================
+    # Shell Aliases
+    # =============================================================================
+    - name: Add CLI tool aliases to .zshrc
+      blockinfile:
+        path: "{{ user_home }}/.zshrc"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - CLI TOOLS"
+        block: |
+          # Enhanced CLI tools aliases
+          alias cat='bat --paging=never'
+          alias catp='bat'
+          alias ls='eza --icons'
+          alias ll='eza -la --icons --git'
+          alias lt='eza -T --icons'
+          alias l='eza -l --icons'
+          alias find='fd'
+          alias grep='rg'
+          alias top='htop'
+          alias du='ncdu'
+
+          # fzf helpers
+          alias fzfp='fzf --preview "bat --color=always --style=numbers --line-range=:500 {}"'
+
+          # Quick edits
+          alias zshconfig='${EDITOR:-vim} ~/.zshrc'
+          alias tmuxconfig='${EDITOR:-vim} ~/.tmux.conf'
+
+          # Docker aliases
+          alias dps='docker ps'
+          alias dpa='docker ps -a'
+          alias dim='docker images'
+          alias dex='docker exec -it'
+          alias dcup='docker-compose up -d'
+          alias dcdown='docker-compose down'
+          alias dclogs='docker-compose logs -f'
+
+          # Git aliases
+          alias gst='git status'
+          alias glog='git log --oneline --graph --decorate'
+          alias gcom='git commit -m'
+          alias gpush='git push'
+          alias gpull='git pull'
+
+          # Kubectl alias
+          alias k='kubectl'
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+      become: no
+
+    # =============================================================================
+    # PATH Configuration
+    # =============================================================================
+    - name: Add PATH exports to .zshrc
+      blockinfile:
+        path: "{{ user_home }}/.zshrc"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - PATH"
+        block: |
+          # Go
+          export PATH=$PATH:/usr/local/go/bin
+          export GOPATH=$HOME/go
+          export PATH=$PATH:$GOPATH/bin
+
+          # Rust/Cargo
+          [ -s "$HOME/.cargo/env" ] && \. "$HOME/.cargo/env"
+
+          # NVM
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
+          # Local bin
+          export PATH=$HOME/.local/bin:$PATH
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+      become: no

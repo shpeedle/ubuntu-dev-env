@@ -1,0 +1,43 @@
+FROM ubuntu:24.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install systemd and basic dependencies
+RUN apt-get update && \
+    apt-get install -y \
+    sudo \
+    systemd \
+    systemd-sysv \
+    python3 \
+    python3-apt \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a test user with sudo privileges
+RUN useradd -m -s /bin/bash testuser && \
+    echo "testuser:testuser" | chpasswd && \
+    usermod -aG sudo testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Set up systemd
+RUN cd /lib/systemd/system/sysinit.target.wants/ && \
+    ls | grep -v systemd-tmpfiles-setup | xargs rm -f $1 && \
+    rm -f /lib/systemd/system/multi-user.target.wants/* && \
+    rm -f /etc/systemd/system/*.wants/* && \
+    rm -f /lib/systemd/system/local-fs.target.wants/* && \
+    rm -f /lib/systemd/system/sockets.target.wants/*udev* && \
+    rm -f /lib/systemd/system/sockets.target.wants/*initctl* && \
+    rm -f /lib/systemd/system/basic.target.wants/* && \
+    rm -f /lib/systemd/system/anaconda.target.wants/* && \
+    rm -f /lib/systemd/system/plymouth* && \
+    rm -f /lib/systemd/system/systemd-update-utmp*
+
+# Create workspace directory
+WORKDIR /workspace
+
+# Switch to testuser
+USER testuser
+WORKDIR /home/testuser
+
+CMD ["/bin/bash"]
