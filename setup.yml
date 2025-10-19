@@ -408,18 +408,9 @@
         update_cache: yes
 
     # =============================================================================
-    # Ansible
+    # Ansible Configuration
     # =============================================================================
-    - name: Add Ansible PPA
-      apt_repository:
-        repo: ppa:ansible/ansible
-        state: present
-
-    - name: Install Ansible
-      apt:
-        name: ansible
-        state: present
-        update_cache: yes
+    # Note: Ansible is installed by bootstrap.sh before running this playbook
 
     - name: Create Ansible directories
       file:

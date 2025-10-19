@@ -21,7 +21,7 @@ This repository uses Ansible to automate the installation and configuration of e
 - **Kubernetes Tools** - kubectl
 - **IaC Tools** - OpenTofu (Terraform alternative), Terrascan
 - **Security Tools** - Trivy (vulnerability scanner)
-- **Ansible** - Automation and configuration management
+- **Ansible** - Automation and configuration management (installed by bootstrap)
 - **AWS CLI** - Amazon Web Services CLI
 - **Tmux** - Terminal multiplexer with custom config
 - **Neovim** - Modern Vim-based text editor with config
