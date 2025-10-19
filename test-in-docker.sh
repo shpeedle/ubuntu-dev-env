@@ -78,31 +78,44 @@ if [ $? -eq 0 ]; then
     echo ""
     log_step "Verification - Checking installed tools..."
 
-    # Verify installations
+    # Verify installations (with proper PATH)
     docker exec -u testuser ubuntu-dev-test bash -c "
+        # Load all PATHs
+        export PATH=\$HOME/.local/bin:\$PATH
+        export PATH=\$HOME/.fzf/bin:\$PATH
+        export PATH=/usr/local/go/bin:\$PATH
+        export PATH=\$HOME/.cargo/bin:\$PATH
+
+        # Source nvm if available
+        export NVM_DIR=\$HOME/.nvm
+        [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
+
         echo '--- Build Tools ---'
         gcc --version 2>/dev/null | head -n1 || echo 'gcc: NOT FOUND'
         cmake --version 2>/dev/null | head -n1 || echo 'cmake: NOT FOUND'
 
         echo ''
         echo '--- CLI Tools ---'
-        which fzf &>/dev/null && echo 'fzf: ✓' || echo 'fzf: NOT FOUND'
+        [ -x \$HOME/.fzf/bin/fzf ] && echo 'fzf: ✓' || echo 'fzf: NOT FOUND'
         which rg &>/dev/null && echo 'ripgrep: ✓' || echo 'ripgrep: NOT FOUND'
-        which bat &>/dev/null && echo 'bat: ✓' || echo 'bat: NOT FOUND'
-        which fd &>/dev/null && echo 'fd: ✓' || echo 'fd: NOT FOUND'
+        [ -x \$HOME/.local/bin/bat ] && echo 'bat: ✓' || echo 'bat: NOT FOUND'
+        [ -x \$HOME/.local/bin/fd ] && echo 'fd: ✓' || echo 'fd: NOT FOUND'
         which eza &>/dev/null && echo 'eza: ✓' || echo 'eza: NOT FOUND'
+        which jq &>/dev/null && echo 'jq: ✓' || echo 'jq: NOT FOUND'
+        which yq &>/dev/null && echo 'yq: ✓' || echo 'yq: NOT FOUND'
 
         echo ''
         echo '--- Programming Languages ---'
         python3 --version 2>/dev/null || echo 'python3: NOT FOUND'
-        which uv &>/dev/null && uv --version 2>/dev/null || echo 'uv: NOT FOUND'
-        go version 2>/dev/null || echo 'go: NOT FOUND'
-        rustc --version 2>/dev/null || echo 'rustc: NOT FOUND'
+        [ -x \$HOME/.cargo/bin/uv ] && \$HOME/.cargo/bin/uv --version 2>/dev/null || echo 'uv: NOT FOUND'
+        [ -x /usr/local/go/bin/go ] && /usr/local/go/bin/go version 2>/dev/null || echo 'go: NOT FOUND'
+        [ -x \$HOME/.cargo/bin/rustc ] && \$HOME/.cargo/bin/rustc --version 2>/dev/null || echo 'rustc: NOT FOUND'
+        command -v node &>/dev/null && node --version 2>/dev/null || echo 'node: NOT FOUND'
 
         echo ''
         echo '--- Git Tools ---'
         gh --version 2>/dev/null | head -n1 || echo 'gh: NOT FOUND'
-        lazygit --version 2>/dev/null || echo 'lazygit: NOT FOUND'
+        lazygit --version 2>/dev/null | head -n1 || echo 'lazygit: NOT FOUND'
 
         echo ''
         echo '--- DevOps Tools ---'
