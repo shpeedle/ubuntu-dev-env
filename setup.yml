@@ -109,6 +109,60 @@
       when: ansible_architecture == "x86_64"
 
     # =============================================================================
+    # Nerd Fonts (for terminal icons)
+    # =============================================================================
+    - name: Create fonts directory
+      file:
+        path: "{{ user_home }}/.local/share/fonts"
+        state: directory
+        owner: "{{ regular_user }}"
+        group: "{{ regular_user }}"
+      become: no
+
+    - name: Check if JetBrainsMono Nerd Font is installed
+      stat:
+        path: "{{ user_home }}/.local/share/fonts/JetBrainsMonoNerdFont-Regular.ttf"
+      register: nerd_font_stat
+      become: no
+
+    - name: Get latest Nerd Fonts release info
+      uri:
+        url: https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest
+        return_content: yes
+      register: nerd_fonts_release
+      changed_when: false
+      failed_when: false
+      when: not nerd_font_stat.stat.exists
+
+    - name: Set Nerd Fonts version (latest or fallback)
+      set_fact:
+        nerd_fonts_version: "{{ nerd_fonts_release.json.tag_name | default('v3.3.0') }}"
+      when: not nerd_font_stat.stat.exists
+
+    - name: Download JetBrainsMono Nerd Font
+      get_url:
+        url: "https://github.com/ryanoasis/nerd-fonts/releases/download/{{ nerd_fonts_version }}/JetBrainsMono.zip"
+        dest: /tmp/JetBrainsMono.zip
+      become: no
+      when: not nerd_font_stat.stat.exists
+      retries: 3
+      delay: 5
+
+    - name: Extract JetBrainsMono Nerd Font
+      unarchive:
+        src: /tmp/JetBrainsMono.zip
+        dest: "{{ user_home }}/.local/share/fonts/"
+        remote_src: yes
+      become: no
+      when: not nerd_font_stat.stat.exists
+
+    - name: Update font cache
+      shell: fc-cache -fv
+      become: no
+      when: not nerd_font_stat.stat.exists
+      changed_when: false
+
+    # =============================================================================
     # Git Tools (GitHub CLI, GitLab CLI, lazygit)
     # =============================================================================
     - name: Add GitHub CLI repository key

@@ -10,6 +10,7 @@ This repository uses Ansible to automate the installation and configuration of e
 
 - **Build Tools** - gcc, g++, make, cmake
 - **Essential CLI Tools** - fzf, ripgrep, bat, fd, eza, jq, yq, htop, tldr, ncdu
+- **Nerd Fonts** - JetBrainsMono Nerd Font (for terminal icons)
 - **Git** - Version control system
 - **Git Tools** - GitHub CLI (gh), lazygit
 - **Python3** - Python with pip, venv, and development headers
@@ -66,7 +67,14 @@ After running the setup, you should:
    - Enable zsh as your default shell
    - Allow running Docker without sudo
 
-2. After logging back in, verify installations:
+2. **Configure your terminal to use the Nerd Font**:
+   - The playbook installs **JetBrainsMono Nerd Font** which provides icon support
+   - You need to configure your terminal emulator to use this font
+   - **GNOME Terminal**: Edit → Preferences → Profile → Text → Custom font → Select "JetBrainsMono Nerd Font"
+   - **Other terminals**: Look for font settings and select "JetBrainsMono Nerd Font" or "JetBrainsMono NF"
+   - If icons still don't display, you may need to restart your terminal
+
+3. After logging back in, verify installations:
    ```bash
    gcc --version
    git --version
@@ -80,7 +88,7 @@ After running the setup, you should:
    echo $SHELL  # Should show /usr/bin/zsh
    ```
 
-3. Start using your new tools!
+4. Start using your new tools!
 
 ## Customization
 
@@ -263,6 +271,23 @@ docker compose -f docker-compose.test.yml down
 - ✅ Safe to make public
 
 ## Troubleshooting
+
+### Icons Not Displaying (Blank Boxes)
+If you see blank/empty boxes instead of icons when using `ls` or `eza`:
+```bash
+# 1. Verify Nerd Font is installed
+fc-list | grep -i "JetBrains"
+
+# 2. Configure your terminal to use the Nerd Font
+# GNOME Terminal: Edit → Preferences → Profile → Text → Custom font
+# Select "JetBrainsMono Nerd Font" or "JetBrainsMono NF"
+
+# 3. Restart your terminal
+# Close and reopen your terminal window
+
+# 4. Test icon display
+ls  # Should show icons properly
+```
 
 ### Permission Issues
 ```bash
