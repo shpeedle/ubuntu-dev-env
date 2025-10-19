@@ -48,12 +48,13 @@ if command -v fd &> /dev/null || command -v fdfind &> /dev/null; then
     log_warn "fd is already installed"
 else
     sudo apt-get install -y fd-find
-    # Create fd symlink if it doesn't exist
-    if [ ! -f "$HOME/.local/bin/fd" ]; then
-        mkdir -p ~/.local/bin
-        ln -s $(which fdfind) ~/.local/bin/fd
-        log_info "Created fd symlink at ~/.local/bin/fd"
-    fi
+fi
+
+# Create fd symlink if it doesn't exist
+if command -v fdfind &> /dev/null && ! command -v fd &> /dev/null; then
+    mkdir -p ~/.local/bin
+    ln -sf $(which fdfind) ~/.local/bin/fd
+    log_info "Created fd symlink at ~/.local/bin/fd"
 fi
 
 # Install bat
@@ -62,18 +63,23 @@ if command -v bat &> /dev/null || command -v batcat &> /dev/null; then
     log_warn "bat is already installed"
 else
     sudo apt-get install -y bat
-    # Create bat symlink if it doesn't exist (Ubuntu installs it as batcat)
-    if [ ! -f "$HOME/.local/bin/bat" ]; then
-        mkdir -p ~/.local/bin
-        ln -s $(which batcat) ~/.local/bin/bat
-        log_info "Created bat symlink at ~/.local/bin/bat"
-    fi
+fi
+
+# Create bat symlink if it doesn't exist (Ubuntu installs it as batcat)
+if command -v batcat &> /dev/null && ! command -v bat &> /dev/null; then
+    mkdir -p ~/.local/bin
+    ln -sf $(which batcat) ~/.local/bin/bat
+    log_info "Created bat symlink at ~/.local/bin/bat"
 fi
 
 # Install fzf
 log_info "Installing fzf..."
 if command -v fzf &> /dev/null; then
     log_warn "fzf is already installed"
+elif [ -d "$HOME/.fzf" ]; then
+    log_warn "fzf directory exists, running installer..."
+    ~/.fzf/install --all --no-bash --no-fish
+    log_info "fzf configured for zsh"
 else
     git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
     ~/.fzf/install --all --no-bash --no-fish
