@@ -82,6 +82,15 @@
         creates: "{{ user_home }}/.fzf/bin/fzf"
       become: no
 
+    - name: Remove old eza repository configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/gierens.list
+        - /etc/apt/keyrings/gierens.gpg
+      ignore_errors: yes
+
     - name: Add eza repository key
       shell: |
         wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
@@ -165,6 +174,15 @@
     # =============================================================================
     # Git Tools (GitHub CLI, GitLab CLI, lazygit)
     # =============================================================================
+    - name: Remove old GitHub CLI repository configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/github-cli.list
+        - /usr/share/keyrings/githubcli-archive-keyring.gpg
+      ignore_errors: yes
+
     - name: Add GitHub CLI repository key
       shell: |
         curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg
@@ -336,6 +354,15 @@
           - lsb-release
         state: present
 
+    - name: Remove old Docker repository configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/docker.list
+        - /etc/apt/keyrings/docker.gpg
+      ignore_errors: yes
+
     - name: Add Docker GPG key
       shell: |
         mkdir -p /etc/apt/keyrings
@@ -375,6 +402,15 @@
     # =============================================================================
     # Kubernetes Tools (kubectl)
     # =============================================================================
+    - name: Remove old Kubernetes repository configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/kubernetes.list
+        - /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      ignore_errors: yes
+
     - name: Add Kubernetes apt key
       shell: |
         mkdir -p /etc/apt/keyrings
@@ -442,6 +478,15 @@
     # =============================================================================
     # Security Tools (Trivy)
     # =============================================================================
+    - name: Remove old Trivy repository configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/trivy.list
+        - /usr/share/keyrings/trivy.gpg
+      ignore_errors: yes
+
     - name: Add Trivy repository key
       shell: |
         wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor -o /usr/share/keyrings/trivy.gpg
@@ -565,6 +610,15 @@
     # =============================================================================
     # Neovim
     # =============================================================================
+    - name: Remove old Neovim PPA configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/neovim-ppa-ubuntu-unstable-noble.list
+        - /etc/apt/sources.list.d/neovim-ppa-ubuntu-unstable-jammy.list
+      ignore_errors: yes
+
     - name: Add Neovim PPA
       apt_repository:
         repo: ppa:neovim-ppa/unstable
@@ -677,6 +731,16 @@
     # =============================================================================
     # Visual Studio Code
     # =============================================================================
+    - name: Remove old VSCode repository configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/vscode.list
+        - /etc/apt/keyrings/packages.microsoft.gpg
+        - /usr/share/keyrings/microsoft.gpg
+      ignore_errors: yes
+
     - name: Add Microsoft GPG key
       shell: |
         wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/packages.microsoft.gpg
@@ -710,6 +774,15 @@
     # =============================================================================
     # Google Chrome
     # =============================================================================
+    - name: Remove old Google Chrome repository configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/google-chrome.list
+        - /usr/share/keyrings/google-chrome-keyring.gpg
+      ignore_errors: yes
+
     - name: Add Google Chrome GPG key
       shell: |
         wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg

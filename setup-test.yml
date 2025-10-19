@@ -76,6 +76,15 @@
         creates: "{{ user_home }}/.fzf/bin/fzf"
       become: no
 
+    - name: Remove old eza repository configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/gierens.list
+        - /etc/apt/keyrings/gierens.gpg
+      ignore_errors: yes
+
     - name: Add eza repository key
       shell: |
         wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | gpg --dearmor -o /etc/apt/keyrings/gierens.gpg
@@ -152,6 +161,15 @@
       become: no
       when: not nerd_font_stat.stat.exists
       changed_when: false
+
+    - name: Remove old GitHub CLI repository configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/github-cli.list
+        - /usr/share/keyrings/githubcli-archive-keyring.gpg
+      ignore_errors: yes
 
     - name: Add GitHub CLI repository key
       shell: |
@@ -266,6 +284,15 @@
       apt:
         name: tmux
         state: present
+
+    - name: Remove old Neovim PPA configurations
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/neovim-ppa-ubuntu-unstable-noble.list
+        - /etc/apt/sources.list.d/neovim-ppa-ubuntu-unstable-jammy.list
+      ignore_errors: yes
 
     - name: Add Neovim PPA
       apt_repository:
